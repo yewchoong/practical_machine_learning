@@ -80,7 +80,8 @@ fit_rf <- train(classe~., data=pml_train_train, method="rf", trControl=tr_contro
 plot(fit_rf)
 ```
 
-The generated model was examnined under the partitioned validation set to examine the accuracy and estimated error of prediction. By using all predictors for five classes using cross-validation at a 5-fold an accuracy of 98.57% with a 95% CI [0.9832-0.988] was achieved accompanied by a Kappa value of 0.982.
+## Out of sample error
+The generated model was examnined under the partitioned validation set to examine the accuracy and estimated error of prediction. By using all predictors for five classes using cross-validation at a 5-fold an accuracy of 98.57% with a 95% CI [0.9832-0.988] was achieved accompanied by a Kappa value of 0.982. The out of sample error is very low.
 ```{r}
 predRf <- predict(fit_rf, newdata=pml_train_validate)
 cfsm <- confusionMatrix(predRf, pml_train_validate$classe)
