@@ -1,0 +1,101 @@
+---
+title: "Prediction Assignment Writeup"
+author: "YC Chew"
+date: "January 30, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+The original publication that provide the data:
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+
+## Prepare the data
+
+Reading training and test data from raw files, normalize all 'NA', '#DIV/0!' and '' fields as 'NA'.
+```{r}
+pml_training <- read.csv("pml-training.csv", na.strings = c("NA", "#DIV/0!", ""))
+pml_testing  <- read.csv("pml-testing.csv",  na.strings = c("NA", "#DIV/0!", ""))
+```
+
+Review the training data. Same command can apply to the test data set.
+```{r}
+str(pml_training)
+```
+
+## Data cleaning
+
+We might noticed that the first 6 features of data were reference data. Thus, we can remove them as they are no use for prediction.
+```{r}
+pml_training <- pml_training[, -c(1:6)]
+pml_testing  <- pml_testing[, -c(1:6)]
+```
+
+We should remove features with mostly NA values.
+```{r}
+# keep features with less than 10% NA in it
+good_features  <- apply(!is.na(pml_training), 2, sum) > (0.9 * 19622)
+pml_training <- pml_training[, good_features]
+pml_testing <- pml_testing[, good_features]
+```
+
+Prepare features that are related to belt, forearm, arm and dumbell.
+```{r}
+# to get the full list of name of those desired features
+predNames <- names(pml_training)[grepl('belt|forearm|arm|dumbell', names(pml_training))]
+# create final training data with prediction features and the classe feature
+pml_training <- pml_training[, c(predNames, 'classe')]
+```
+
+## Cross-validation
+We split the training set into two for cross validation. We randomly subsample 50% of the set for training purposes and the remaining 50% for testing, evaluation and accuracy measurement.
+```{r}
+library(caret)
+inTrain <- createDataPartition(y=pml_training$classe, p=0.50, list=FALSE)
+pml_train_train  <- pml_training[inTrain, ]
+pml_train_validate  <- pml_training[-inTrain, ]
+```
+
+## Data modeling
+We generate random forest trees from the training dataset using cross-validation.
+```{r}
+tr_control <- trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+fit_rf <- train(classe~., data=pml_train_train, method="rf", trControl=tr_control, verbose=F)
+plot(fit_rf)
+```
+
+The generated model was examnined under the partitioned validation set to examine the accuracy and estimated error of prediction. By using all predictors for five classes using cross-validation at a 5-fold an accuracy of 98.57% with a 95% CI [0.9832-0.988] was achieved accompanied by a Kappa value of 0.982.
+```{r}
+predRf <- predict(fit_rf, newdata=pml_train_validate)
+cfsm <- confusionMatrix(predRf, pml_train_validate$classe)
+cfsm
+plot(cfsm$table, col = cfsm$byClass, main = paste("Random Forest Confusion Matrix: Accuracy =", round(cfsm$overall['Accuracy'], 4)))
+```
+
+## Prediction
+We used the above model to predict the 20 test cases.
+```{r}
+predResult <- predict(fit_rf, newdata=pml_testing)
+# view prediction result
+predResult
+# [1] B A B A A E D B A A B C B A E E A B B B
+```
+
+## Conclusion
+Using the above model, I am able to get 20 out of 20 correct answers for the course project prediction quiz. This confirmed the accuracy of the model.
